@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cohete vs Meteoritos</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: black; color: white; font-family: Arial; text-align: center; }
+    canvas { background: #111; display: block; margin: 20px auto; border: 2px solid white; touch-action: none; }
+    #menu { margin-top: 20px; }
+    button { padding: 10px 20px; margin: 10px; font-size: 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>🚀 Cohete vs Meteoritos ☄️</h1>
+  <div id="menu">
+    <p>Selecciona la dificultad:</p>
+    <button onclick="startGame('easy')">Fácil</button>
+    <button onclick="startGame('medium')">Medio</button>
+    <button onclick="startGame('hard')">Difícil</button>
+    <button onclick="startGame('omega')">Omega</button>
+  </div>
+  <canvas id="gameCanvas" width="500" height="500"></canvas>
+  <p id="score">Puntaje: 0</p>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    let rocket, meteorites, keys, gameLoop, score, difficulty;
+
+    const speeds = {
+      easy: 2,
+      medium: 4,
+      hard: 6,
+      omega: 4
+    };
+
+    const spawnRate = {
+      easy: 60,
+      medium: 40,
+      hard: 25,
+      omega: 15
+    };
+
+    function startGame(diff) {
+      document.getElementById("menu").style.display = "none";
+      difficulty = diff;
+      rocket = { x: 230, y: 450, w: 40, h: 40 };
+      meteorites = [];
+      keys = {};
+      score = 0;
+      let frameCount = 0;
+
+      document.addEventListener("keydown", e => keys[e.key] = true);
+      document.addEventListener("keyup", e => keys[e.key] = false);
+
+      // Control por mouse o dedo
+      canvas.addEventListener("pointermove", e => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        rocket.x = Math.min(Math.max(mouseX - rocket.w / 2, 0), canvas.width - rocket.w);
+        rocket.y = Math.min(Math.max(mouseY - rocket.h / 2, 0), canvas.height - rocket.h);
+      });
+
+      gameLoop = setInterval(() => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Movimiento del cohete (teclado)
+        if (keys["ArrowLeft"]) rocket.x -= 5;
+        if (keys["ArrowRight"]) rocket.x += 5;
+        if (keys["ArrowUp"]) rocket.y -= 5;
+        if (keys["ArrowDown"]) rocket.y += 5;
+
+        // Limitar al canvas
+        rocket.x = Math.min(Math.max(rocket.x, 0), canvas.width - rocket.w);
+        rocket.y = Math.min(Math.max(rocket.y, 0), canvas.height - rocket.h);
+
+        // Dibujar cohete
+        ctx.font = "30px Arial";
+        ctx.fillText("🚀", rocket.x, rocket.y + rocket.h);
+
+        // Crear meteoritos
+        if (frameCount % spawnRate[difficulty] === 0) {
+          generateMeteor();
+        }
+
+        // Dibujar y mover meteoritos
+        for (let i = meteorites.length - 1; i >= 0; i--) {
+          const m = meteorites[i];
+          m.x += m.vx;
+          m.y += m.vy;
+          ctx.fillText("☄️", m.x, m.y);
+
+          if (
+            rocket.x < m.x + m.w &&
+            rocket.x + rocket.w > m.x &&
+            rocket.y < m.y + m.h &&
+            rocket.y + rocket.h > m.y
+          ) {
+            endGame();
+            return;
+          }
+
+          if (m.x < -50 || m.x > 550 || m.y < -50 || m.y > 550) {
+            meteorites.splice(i, 1);
+          }
+        }
+
+        score++;
+        document.getElementById("score").innerText = "Puntaje: " + score;
+
+        frameCount++;
+      }, 1000 / 60);
+    }
+
+    function generateMeteor() {
+      let x = 0, y = 0, vx = 0, vy = 0;
+      const size = 30;
+
+      if (difficulty === 'omega') {
+        const side = Math.floor(Math.random() * 8);
+        switch (side) {
+          case 0: x = Math.random() * 500; y = -size; vy = speeds[difficulty]; break;
+          case 1: x = Math.random() * 500; y = 500; vy = -speeds[difficulty]; break;
+          case 2: x = -size; y = Math.random() * 500; vx = speeds[difficulty]; break;
+          case 3: x = 500; y = Math.random() * 500; vx = -speeds[difficulty]; break;
+          case 4: x = -size; y = -size; vx = speeds[difficulty]; vy = speeds[difficulty]; break;
+          case 5: x = 500; y = -size; vx = -speeds[difficulty]; vy = speeds[difficulty]; break;
+          case 6: x = -size; y = 500; vx = speeds[difficulty]; vy = -speeds[difficulty]; break;
+          case 7: x = 500; y = 500; vx = -speeds[difficulty]; vy = -speeds[difficulty]; break;
+        }
+      } else {
+        x = Math.random() * 480;
+        y = -size;
+        vy = speeds[difficulty];
+      }
+
+      meteorites.push({ x, y, vx, vy, w: size, h: size });
+    }
+
+    function endGame() {
+      clearInterval(gameLoop);
+      alert("💥 ¡Perdiste! Puntaje: " + score);
+      location.reload();
+    }
+  </script>
+</body>
+</html>
