@@ -7,7 +7,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: black; color: white; font-family: Arial; text-align: center; }
-    canvas { background: #111; display: block; margin: 20px auto; border: 2px solid white; touch-action: none; }
+    canvas { background: #111; display: block; margin: 20px auto; border: 2px solid white; }
     #menu { margin-top: 20px; }
     button { padding: 10px 20px; margin: 10px; font-size: 16px; cursor: pointer; }
   </style>
@@ -20,6 +20,7 @@
     <button onclick="startGame('medium')">Medio</button>
     <button onclick="startGame('hard')">Difícil</button>
     <button onclick="startGame('omega')">Omega</button>
+    <button onclick="startGame('optimus')">Optimus</button>
   </div>
   <canvas id="gameCanvas" width="500" height="500"></canvas>
   <p id="score">Puntaje: 0</p>
@@ -27,87 +28,115 @@
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
-    let rocket, meteorites, keys, gameLoop, score, difficulty;
+    let rocket, meteorites, hearts, lasers, keys, gameLoop, score, difficulty, warning = false;
 
     const speeds = {
       easy: 2,
       medium: 4,
-      hard: 6,
-      omega: 4
+      hard: 7,
+      omega: 4,
+      optimus: 4
     };
 
     const spawnRate = {
       easy: 60,
       medium: 40,
-      hard: 25,
-      omega: 15
+      hard: 20,
+      omega: 15,
+      optimus: 15
     };
 
     function startGame(diff) {
       document.getElementById("menu").style.display = "none";
       difficulty = diff;
-      rocket = { x: 230, y: 450, w: 40, h: 40 };
+      rocket = { x: 230, y: 230, w: 40, h: 40 };
       meteorites = [];
+      hearts = [];
+      lasers = [];
       keys = {};
       score = 0;
       let frameCount = 0;
+      let laserWarning = 0;
 
       document.addEventListener("keydown", e => keys[e.key] = true);
       document.addEventListener("keyup", e => keys[e.key] = false);
 
-      // Control por mouse o dedo
       canvas.addEventListener("pointermove", e => {
         const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        rocket.x = Math.min(Math.max(mouseX - rocket.w / 2, 0), canvas.width - rocket.w);
-        rocket.y = Math.min(Math.max(mouseY - rocket.h / 2, 0), canvas.height - rocket.h);
+        rocket.x = e.clientX - rect.left - rocket.w / 2;
+        rocket.y = e.clientY - rect.top - rocket.h / 2;
       });
 
       gameLoop = setInterval(() => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Movimiento del cohete (teclado)
-        if (keys["ArrowLeft"]) rocket.x -= 5;
-        if (keys["ArrowRight"]) rocket.x += 5;
-        if (keys["ArrowUp"]) rocket.y -= 5;
-        if (keys["ArrowDown"]) rocket.y += 5;
-
-        // Limitar al canvas
-        rocket.x = Math.min(Math.max(rocket.x, 0), canvas.width - rocket.w);
-        rocket.y = Math.min(Math.max(rocket.y, 0), canvas.height - rocket.h);
+        // Movimiento por teclas
+        if (keys["ArrowLeft"] && rocket.x > 0) rocket.x -= 5;
+        if (keys["ArrowRight"] && rocket.x < canvas.width - rocket.w) rocket.x += 5;
+        if (keys["ArrowUp"] && rocket.y > 0) rocket.y -= 5;
+        if (keys["ArrowDown"] && rocket.y < canvas.height - rocket.h) rocket.y += 5;
 
         // Dibujar cohete
         ctx.font = "30px Arial";
-        ctx.fillText("🚀", rocket.x, rocket.y + rocket.h);
+        ctx.fillText("🚀", rocket.x, rocket.y + 30);
 
         // Crear meteoritos
         if (frameCount % spawnRate[difficulty] === 0) {
           generateMeteor();
         }
 
-        // Dibujar y mover meteoritos
+        // Dibujar meteoritos
         for (let i = meteorites.length - 1; i >= 0; i--) {
           const m = meteorites[i];
           m.x += m.vx;
           m.y += m.vy;
           ctx.fillText("☄️", m.x, m.y);
+          if (isColliding(m, rocket)) endGame();
+          if (m.x < -50 || m.x > 550 || m.y < -50 || m.y > 550) meteorites.splice(i, 1);
+        }
 
-          if (
-            rocket.x < m.x + m.w &&
-            rocket.x + rocket.w > m.x &&
-            rocket.y < m.y + m.h &&
-            rocket.y + rocket.h > m.y
-          ) {
-            endGame();
-            return;
+        // Dibujar corazones (vidas extra)
+        if (frameCount % 600 === 0 && difficulty !== 'omega') {
+          hearts.push({ x: Math.random() * 460, y: -30, vy: 1 });
+        }
+        for (let i = hearts.length - 1; i >= 0; i--) {
+          const h = hearts[i];
+          h.y += h.vy;
+          ctx.fillText("❤️", h.x, h.y);
+          if (isColliding(h, rocket)) hearts.splice(i, 1); // A futuro: sumar vida
+          if (h.y > 550) hearts.splice(i, 1);
+        }
+
+        // Lásers (solo en optimus)
+        if (difficulty === 'optimus') {
+          if (frameCount % 300 === 0) {
+            warning = true;
+            laserWarning = frameCount;
+            const laserX = Math.random() * 500;
+            lasers.push({ x: laserX, active: false });
           }
-
-          if (m.x < -50 || m.x > 550 || m.y < -50 || m.y > 550) {
-            meteorites.splice(i, 1);
+          for (let l of lasers) {
+            if (frameCount - laserWarning === 30 && !l.active) {
+              l.active = true;
+              warning = false;
+            }
+          }
+          for (let i = lasers.length - 1; i >= 0; i--) {
+            const l = lasers[i];
+            if (l.active) {
+              ctx.fillStyle = "red";
+              ctx.fillRect(l.x, 0, 5, 500);
+              if (rocket.x < l.x + 5 && rocket.x + rocket.w > l.x) endGame();
+              lasers.splice(i, 1);
+            }
+          }
+          if (warning) {
+            ctx.fillStyle = "yellow";
+            ctx.fillText("⚠️ LÁSER INMINENTE ⚠️", 120, 250);
           }
         }
 
+        // Puntaje
         score++;
         document.getElementById("score").innerText = "Puntaje: " + score;
 
@@ -119,7 +148,7 @@
       let x = 0, y = 0, vx = 0, vy = 0;
       const size = 30;
 
-      if (difficulty === 'omega') {
+      if (difficulty === 'omega' || difficulty === 'optimus') {
         const side = Math.floor(Math.random() * 8);
         switch (side) {
           case 0: x = Math.random() * 500; y = -size; vy = speeds[difficulty]; break;
@@ -138,6 +167,15 @@
       }
 
       meteorites.push({ x, y, vx, vy, w: size, h: size });
+    }
+
+    function isColliding(a, b) {
+      return (
+        b.x < a.x + a.w &&
+        b.x + b.w > a.x &&
+        b.y < a.y + a.h &&
+        b.y + b.h > a.y
+      );
     }
 
     function endGame() {
